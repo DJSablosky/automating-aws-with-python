@@ -72,6 +72,7 @@ def setup_bucket(bucket):
     return
 
 def upload_file(s3_bucket, path, key):
+    content_type = mimetypes.guess_type(key)[0] or 'text/plain'
     s3_bucket.upload_file(
         path,
         key,
