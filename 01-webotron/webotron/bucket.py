@@ -4,7 +4,10 @@
 
 from pathlib import Path
 import mimetypes
+
 from botocore.exceptions import ClientError
+
+import util
 
 
 class BucketManager:
@@ -14,6 +17,18 @@ class BucketManager:
         """Create a BucketManager object."""
         self.session = session
         self.s3 = self.session.resource('s3')
+
+    def get_region_name(self, bucket):
+        """Get the bucket's region name"""
+        bucket_location = self.s3.meta.client.get_bucket_location(
+            Bucket=bucket.name)
+
+        return bucket_location["LocationConstraint"] or 'us-east-1'
+
+    def get_bucket_url(self, bucket):
+        """Get the website URL for this bucket."""
+        return "https://{}.{}.".format(bucket.name, util.get_endpoint(
+            self.get_region_name(bucket))).host)
 
     def all_buckets(self):
         """Get an iterator for all buckets."""
@@ -25,14 +40,12 @@ class BucketManager:
 
     def init_bucket(self, bucket_name):
         """Create new bucket or returns existing one by name."""
-        s3_bucket = None
+        s3_bucket=None
 
         try:
-            s3_bucket = self.s3.create_bucket(
-                Bucket=bucket_name,
-                CreateBucketConfiguration={
-                    'LocationConstraint': self.session.region_name}
-            )
+            s3_bucket=self.s3.create_bucket(Bucket = bucket_name,
+                CreateBucketConfiguration = {
+                    'LocationConstraint': self.session.region_name})
         except ClientError as error:
             if error.response['Error']['Code'] == 'BucketAlreadyOwnedByYou':
                 s3_bucket = self.s3.Bucket(bucket_name)
@@ -74,15 +87,10 @@ class BucketManager:
     @staticmethod
     def upload_file(bucket, path, key):
         """Upload path to s3_bucket at key."""
-        content_type = mimetypes.guess_type(key)[0] or 'text/plain'
+        content_type=mimetypes.guess_type(key)[0] or 'text/plain'
 
-        return bucket.upload_file(
-            path,
-            key,
-            ExtraArgs={
-                'ContentType':  content_type
-            }
-        )
+        return bucket.upload_file(path, key, ExtraArgs={
+                'ContentType':  content_type})
 
     def sync(self, pathname, bucket_name):
         """Sync contents of path to bucket."""
